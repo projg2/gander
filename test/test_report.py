@@ -54,7 +54,7 @@ class PortageAPITests(EbuildRepositoryTestCase):
 
     def test_world_empty(self) -> None:
         self.create()
-        self.assertEqual(self.api.world, frozenset())
+        self.assertEqual(self.api.world, [])
 
     def test_world_plain(self) -> None:
         packages = [
@@ -65,7 +65,7 @@ class PortageAPITests(EbuildRepositoryTestCase):
         self.create(world=packages)
         for x in packages:
             self.create_vdb_package(f'{x}-1')
-        self.assertEqual(self.api.world, frozenset(packages))
+        self.assertEqual(self.api.world, sorted(packages))
 
     def test_world_slotted(self) -> None:
         packages = [
@@ -75,7 +75,7 @@ class PortageAPITests(EbuildRepositoryTestCase):
         self.create(world=packages)
         self.create_vdb_package('dev-libs/foo-3', SLOT='3')
         self.create_vdb_package('dev-libs/foo-4', SLOT='4/7')
-        self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
+        self.assertEqual(self.api.world, ['dev-libs/foo'])
 
     def test_world_versioned(self) -> None:
         packages = [
@@ -83,7 +83,7 @@ class PortageAPITests(EbuildRepositoryTestCase):
         ]
         self.create(world=packages)
         self.create_vdb_package('dev-libs/foo-3')
-        self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
+        self.assertEqual(self.api.world, ['dev-libs/foo'])
 
     def test_world_with_repo(self) -> None:
         packages = [
@@ -91,7 +91,7 @@ class PortageAPITests(EbuildRepositoryTestCase):
         ]
         self.create(world=packages)
         self.create_vdb_package('dev-libs/foo-3')
-        self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
+        self.assertEqual(self.api.world, ['dev-libs/foo'])
 
     def test_world_foreign_package(self) -> None:
         packages = [
@@ -100,7 +100,7 @@ class PortageAPITests(EbuildRepositoryTestCase):
         self.create(world=packages)
         self.create_vdb_package('dev-libs/baz-3',
                                 repository='fancy')
-        self.assertEqual(self.api.world, frozenset())
+        self.assertEqual(self.api.world, [])
 
     def test_world_with_foreign_repo(self) -> None:
         """Test when ::gentoo is installed but ::fancy is requested"""
@@ -109,4 +109,4 @@ class PortageAPITests(EbuildRepositoryTestCase):
         ]
         self.create(world=packages)
         self.create_vdb_package('dev-libs/foo-3')
-        self.assertEqual(self.api.world, frozenset())
+        self.assertEqual(self.api.world, [])

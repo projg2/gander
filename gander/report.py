@@ -72,11 +72,11 @@ class PortageAPI(object):
         return None
 
     @property
-    def world(self) -> typing.Set[str]:
+    def world(self) -> typing.List[str]:
         """
         Packages currently enabled via @world set
 
-        Get the set of packages listed in the @world set.  The atoms
+        Get the list of packages listed in the @world set.  The atoms
         present in the result are returned as plain package names.
         Return an empty list if there is no @world set.
         """
@@ -93,4 +93,4 @@ class PortageAPI(object):
                 # skip packages from other repositories
                 continue
             ret.add(x.cp)
-        return ret
+        return sorted(ret)
