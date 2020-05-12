@@ -61,8 +61,8 @@ class PortageAPITests(unittest.TestCase):
 
     @staticmethod
     def create_profile_directory_empty(profpath: Path,
-                                      etcport: Path
-                                      ) -> None:
+                                       etcport: Path
+                                       ) -> None:
         etcprof = etcport / 'make.profile'
         os.mkdir(etcprof)
 
@@ -77,7 +77,7 @@ class PortageAPITests(unittest.TestCase):
 
     def create(self,
                profile_callback: typing.Optional[typing.Callable[
-               [Path, Path], None]] = None,
+                                 [Path, Path], None]] = None,
                world: typing.Iterable[str] = []
                ) -> None:
         tempdir = Path(self.tempdir.name)
@@ -120,9 +120,12 @@ location = {fancyrepo}
             with open(varport / 'world', 'w') as f:
                 f.write('\n'.join(world))
 
-        self.api = PortageAPI(config_root=self.tempdir.name)
+        self.api = PortageAPI(config_root=Path(self.tempdir.name))
 
-    def create_vdb_package(self, pkg: str, **kwargs) -> None:
+    def create_vdb_package(self,
+                           pkg: str,
+                           **kwargs: str
+                           ) -> None:
         vdir = Path(self.tempdir.name) / 'var' / 'db' / 'pkg' / pkg
         os.makedirs(vdir)
         kwargs.setdefault('repository', 'gentoo')
