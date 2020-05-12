@@ -76,14 +76,15 @@ class PortageAPITests(unittest.TestCase):
                    etcport / 'make.profile')
 
     def create(self,
-               profile_callback: typing.Callable[[Path, Path], None]
-               = create_profile_symlink
+               profile_callback: typing.Optional[typing.Callable[
+               [Path, Path], None]] = None,
+               world: typing.Iterable[str] = []
                ) -> None:
         tempdir = Path(self.tempdir.name)
         etcport = tempdir / 'etc' / 'portage'
         genrepo = tempdir / 'gentoo'
         fancyrepo = tempdir / 'fancy'
-        varport = tempdir / 'var' / 'lib' / 'portage' / 'world'
+        varport = tempdir / 'var' / 'lib' / 'portage'
 
         # note: order is important since profpath is used below
         for repo, repo_name in ((fancyrepo, 'fancy'),
@@ -100,7 +101,10 @@ class PortageAPITests(unittest.TestCase):
 ACCEPT_KEYWORDS="amd64"
 ''')
 
-        os.makedirs(etcport)
+        os.makedirs(etcport / 'sets')
+        with open(etcport / 'make.conf', 'w') as f:
+            f.write(f'''ROOT={repr(str(tempdir))}
+''')
         with open(etcport / 'repos.conf', 'w') as f:
             f.write(f'''[gentoo]
 location = {genrepo}
@@ -108,7 +112,14 @@ location = {genrepo}
 [fancy]
 location = {fancyrepo}
 ''')
+        if profile_callback is None:
+            profile_callback = self.create_profile_symlink
         profile_callback(profpath, etcport)
+        os.makedirs(varport)
+        if world:
+            with open(varport / 'world', 'w') as f:
+                f.write('\n'.join(world))
+
         self.api = PortageAPI(config_root=self.tempdir.name)
 
     def tearDown(self) -> None:
@@ -144,3 +155,54 @@ location = {fancyrepo}
         self.create(
             profile_callback=self.create_profile_nongentoo)
         self.assertIsNone(self.api.profile)
+
+    def test_world_empty(self) -> None:
+        self.create()
+        self.assertEqual(self.api.world, frozenset())
+
+    def test_world_plain(self) -> None:
+        packages = [
+            'dev-libs/foo',
+            'dev-libs/bar',
+            'dev-util/frobnicate'
+        ]
+        self.create(world=packages)
+        self.assertEqual(self.api.world, frozenset(packages))
+
+    def test_world_slotted(self) -> None:
+        packages = [
+            'dev-libs/foo:3',
+            'dev-libs/foo:4/7',
+        ]
+        self.create(world=packages)
+        self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
+
+    def test_world_versioned(self) -> None:
+        packages = [
+            '<dev-libs/foo-4',
+        ]
+        self.create(world=packages)
+        self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
+
+    def test_world_with_repo(self) -> None:
+        packages = [
+            'dev-libs/foo::gentoo',
+        ]
+        self.create(world=packages)
+        self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
+
+    @unittest.expectedFailure
+    def test_world_foreign_package(self) -> None:
+        packages = [
+            'dev-libs/baz',
+        ]
+        self.create(world=packages)
+        self.assertEqual(self.api.world, frozenset())
+
+    @unittest.expectedFailure
+    def test_world_with_foreign_repo(self) -> None:
+        packages = [
+            'dev-libs/foo::fancy',
+        ]
+        self.create(world=packages)
+        self.assertEqual(self.api.world, frozenset())

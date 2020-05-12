@@ -8,6 +8,7 @@ from pathlib import Path
 import typing
 
 from portage import create_trees
+from portage._sets import load_default_config
 
 
 class GentooRepoNotFound(Exception):
@@ -51,7 +52,7 @@ class PortageAPI(object):
 
         Get the currently selected profile.  Supports both direct
         profile choice via a symlink, and make.profile directory
-        with a parent entry.  Returns None if the profile can't
+        with a parent entry.  Return None if the profile can't
         be established or if it is a non-Gentoo profile.
         """
 
@@ -68,3 +69,18 @@ class PortageAPI(object):
             except ValueError:
                 break
         return None
+
+    @property
+    def world(self) -> typing.Set[str]:
+        """
+        Packages currently enabled via @world set
+
+        Get the set of packages listed in the @world set.  The atoms
+        present in the result are returned as plain package names.
+        Return an empty list if there is no @world set.
+        """
+
+        setconf = load_default_config(self.dbapi.settings, self.tree)
+        # TODO: filter to packages from ::gentoo
+        return frozenset(
+            x.cp for x in setconf.getSetAtoms('world'))
