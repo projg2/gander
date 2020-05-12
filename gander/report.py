@@ -36,6 +36,7 @@ class PortageAPI(object):
         trees = create_trees(**kwargs)
         self.tree = trees[max(trees)]
         self.dbapi = self.tree['porttree'].dbapi
+        self.vdb = self.tree['vartree']
 
         for r in self.dbapi.repositories:
             if r.name == 'gentoo':
@@ -81,6 +82,15 @@ class PortageAPI(object):
         """
 
         setconf = load_default_config(self.dbapi.settings, self.tree)
-        # TODO: filter to packages from ::gentoo
-        return frozenset(
-            x.cp for x in setconf.getSetAtoms('world'))
+        ret = set()
+        for x in setconf.getSetAtoms('world'):
+            m = self.vdb.dep_bestmatch(x)
+            if not m:
+                # skip uninstalled packages
+                continue
+            repo, = self.vdb.dbapi.aux_get(m, ['repository'])
+            if repo and repo != 'gentoo':
+                # skip packages from other repositories
+                continue
+            ret.add(x.cp)
+        return ret

@@ -122,6 +122,14 @@ location = {fancyrepo}
 
         self.api = PortageAPI(config_root=self.tempdir.name)
 
+    def create_vdb_package(self, pkg: str, **kwargs) -> None:
+        vdir = Path(self.tempdir.name) / 'var' / 'db' / 'pkg' / pkg
+        os.makedirs(vdir)
+        kwargs.setdefault('repository', 'gentoo')
+        for k, v in kwargs.items():
+            with open(vdir / k, 'w') as f:
+                f.write(v)
+
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
@@ -167,6 +175,8 @@ location = {fancyrepo}
             'dev-util/frobnicate'
         ]
         self.create(world=packages)
+        for x in packages:
+            self.create_vdb_package(f'{x}-1')
         self.assertEqual(self.api.world, frozenset(packages))
 
     def test_world_slotted(self) -> None:
@@ -175,6 +185,8 @@ location = {fancyrepo}
             'dev-libs/foo:4/7',
         ]
         self.create(world=packages)
+        self.create_vdb_package('dev-libs/foo-3', SLOT='3')
+        self.create_vdb_package('dev-libs/foo-4', SLOT='4/7')
         self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
 
     def test_world_versioned(self) -> None:
@@ -182,6 +194,7 @@ location = {fancyrepo}
             '<dev-libs/foo-4',
         ]
         self.create(world=packages)
+        self.create_vdb_package('dev-libs/foo-3')
         self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
 
     def test_world_with_repo(self) -> None:
@@ -189,20 +202,23 @@ location = {fancyrepo}
             'dev-libs/foo::gentoo',
         ]
         self.create(world=packages)
+        self.create_vdb_package('dev-libs/foo-3')
         self.assertEqual(self.api.world, frozenset(('dev-libs/foo',)))
 
-    @unittest.expectedFailure
     def test_world_foreign_package(self) -> None:
         packages = [
             'dev-libs/baz',
         ]
         self.create(world=packages)
+        self.create_vdb_package('dev-libs/baz-3',
+                                repository='fancy')
         self.assertEqual(self.api.world, frozenset())
 
-    @unittest.expectedFailure
     def test_world_with_foreign_repo(self) -> None:
+        """Test when ::gentoo is installed but ::fancy is requested"""
         packages = [
             'dev-libs/foo::fancy',
         ]
         self.create(world=packages)
+        self.create_vdb_package('dev-libs/foo-3')
         self.assertEqual(self.api.world, frozenset())
