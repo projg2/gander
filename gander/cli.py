@@ -11,6 +11,7 @@ import typing
 from pathlib import Path
 
 from gander import __version__
+from gander.privacy import PRIVACY_POLICY
 from gander.report import PortageAPI
 
 
@@ -28,6 +29,11 @@ def make_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def privacy_policy(args: argparse.Namespace) -> int:
+    print(PRIVACY_POLICY)
+    return 0
+
+
 def main(argv: typing.List[str]) -> int:
     argp = argparse.ArgumentParser()
     argp.add_argument('--version',
@@ -42,6 +48,11 @@ def main(argv: typing.List[str]) -> int:
                         const=make_report,
                         dest='action',
                         help='create and output system report')
+    xgroup.add_argument('--privacy-policy',
+                        action='store_const',
+                        const=privacy_policy,
+                        dest='action',
+                        help='print Privacy Policy and exit')
 
     group = argp.add_argument_group('report options')
     group.add_argument('--config-root',
