@@ -5,6 +5,7 @@
 
 import io
 import json
+import typing
 import unittest
 
 from unittest.mock import patch
@@ -15,6 +16,22 @@ from gander.privacy import PRIVACY_POLICY
 from test.repo import EbuildRepositoryTestCase
 
 
+def patch_stdin(data: str
+                ) -> typing.Callable[[typing.Callable], typing.Callable]:
+    def decorator(func: typing.Callable) -> typing.Callable:
+        def subfunc(self: object,
+                    sin: io.StringIO,
+                    *args: typing.Any,
+                    **kwargs: typing.Any
+                    ) -> typing.Any:
+            sin.write(data)
+            sin.seek(0)
+            return func(self, *args, **kwargs)
+        return patch('gander.cli.sys.stdin',
+                     new_callable=io.StringIO)(subfunc)
+    return decorator
+
+
 class CLIBareTests(unittest.TestCase):
     @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
     def test_make_report(self, sout: io.StringIO) -> None:
@@ -22,6 +39,26 @@ class CLIBareTests(unittest.TestCase):
             main(['--privacy-policy']),
             0)
         self.assertIn(PRIVACY_POLICY, sout.getvalue())
+
+    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    def assert_setup(self,
+                     sout: io.StringIO,
+                     exit_status: int = 0
+                     ) -> None:
+        self.assertEqual(main(['--setup']), exit_status)
+        self.assertIn(PRIVACY_POLICY, sout.getvalue())
+
+    @patch_stdin('\n')
+    def test_setup_enter(self) -> None:
+        self.assert_setup()
+
+    @patch_stdin('y\n')
+    def test_setup_y(self) -> None:
+        self.assert_setup()
+
+    @patch_stdin('n\n')
+    def test_setup_n(self) -> None:
+        self.assert_setup(exit_status=1)
 
 
 class CLIRepoTests(EbuildRepositoryTestCase):

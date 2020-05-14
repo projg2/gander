@@ -34,6 +34,29 @@ def privacy_policy(args: argparse.Namespace) -> int:
     return 0
 
 
+def setup(args: argparse.Namespace) -> int:
+    print(PRIVACY_POLICY)
+    print()
+    while True:
+        try:
+            resp = input('Do you accept the terms of the Privacy '
+                         'Policy? [Y/n] ')
+            if not resp or resp.lower() == 'y':
+                break
+            elif resp.lower() == 'n':
+                return 1
+            else:
+                print('Please answer Y or N.')
+        except KeyboardInterrupt:
+            print()
+            return 1
+
+    # TODO: generate system identifier
+    # TODO: set up a cronjob
+
+    return 0
+
+
 def main(argv: typing.List[str]) -> int:
     argp = argparse.ArgumentParser()
     argp.add_argument('--version',
@@ -53,6 +76,11 @@ def main(argv: typing.List[str]) -> int:
                         const=privacy_policy,
                         dest='action',
                         help='print Privacy Policy and exit')
+    xgroup.add_argument('--setup',
+                        action='store_const',
+                        const=setup,
+                        dest='action',
+                        help='set gander up for submitting reports')
 
     group = argp.add_argument_group('report options')
     group.add_argument('--config-root',
