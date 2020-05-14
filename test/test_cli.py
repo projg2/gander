@@ -5,12 +5,23 @@
 
 import io
 import json
+import unittest
 
 from unittest.mock import patch
 
 from gander.cli import main
+from gander.privacy import PRIVACY_POLICY
 
 from test.repo import EbuildRepositoryTestCase
+
+
+class CLIBareTests(unittest.TestCase):
+    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    def test_make_report(self, sout: io.StringIO) -> None:
+        self.assertEqual(
+            main(['--privacy-policy']),
+            0)
+        self.assertIn(PRIVACY_POLICY, sout.getvalue())
 
 
 class CLIRepoTests(EbuildRepositoryTestCase):
