@@ -13,11 +13,15 @@ import typing
 
 from pathlib import Path
 
+import requests
+
 from gander import __version__
 from gander.privacy import PRIVACY_POLICY
 from gander.report import PortageAPI
 
 
+DEFAULT_ENDPOINT = 'https://anser.gentoo.org/submit'
+DEFAULT_TIMEOUT = 30
 MACHINE_ID_RE = re.compile(r'[0-9a-f]{32}')
 
 
@@ -93,6 +97,52 @@ def setup(args: argparse.Namespace) -> int:
     return 0
 
 
+def submit(args: argparse.Namespace) -> int:
+    try:
+        with open(args.machine_id_path, 'r') as f:
+            machine_id = f.read().strip()
+        if not MACHINE_ID_RE.match(machine_id):
+            raise ValueError(machine_id)
+    except (FileNotFoundError, ValueError):
+        print('Machine identifier not found or invalid, please run '
+              '--setup',
+              file=sys.stderr)
+        return 1
+
+    api = PortageAPI(config_root=args.config_root)
+    data = {
+        'goose-version': 1,
+        'id': machine_id,
+        'profile': api.profile,
+        'world': api.world,
+    }
+
+    try:
+        resp = requests.put(args.api_endpoint,
+                            headers={'User-Agent': 'gander'},
+                            json=data,
+                            timeout=args.timeout)
+    except (requests.ConnectionError, requests.Timeout) as e:
+        print(f'Report submission failed:\n{e}')
+        return 1
+    else:
+        print(f'The server replied ({resp.status_code}):\n{resp.text}')
+        if resp:
+            print('It seems that the report has been accepted.')
+            return 0
+        else:
+            print('The submission has failed.')
+            if resp.status_code >= 500 and resp.status_code < 600:
+                print('The server seems to be having trouble, please '
+                      'try again later.')
+            elif resp.status_code == 429:
+                print('Please wait 7 days between successive '
+                      'submissions.')
+            elif resp.status_code == 404:
+                print('Did you specify a correct API endpoint URL?')
+            return 1
+
+
 def main(argv: typing.List[str]) -> int:
     argp = argparse.ArgumentParser()
     argp.add_argument('--version',
@@ -117,6 +167,11 @@ def main(argv: typing.List[str]) -> int:
                         const=setup,
                         dest='action',
                         help='set gander up for submitting reports')
+    xgroup.add_argument('--submit',
+                        action='store_const',
+                        const=submit,
+                        dest='action',
+                        help='generate and submit report')
 
     group = argp.add_argument_group('report options')
     group.add_argument('--config-root',
@@ -126,11 +181,20 @@ def main(argv: typing.List[str]) -> int:
 
     group = argp.add_argument_group('submission options')
     machine_id_path = get_default_machine_id_path()
+    group.add_argument('--api-endpoint',
+                       default=DEFAULT_ENDPOINT,
+                       help=f'API endpoint '
+                            f'(default: {DEFAULT_ENDPOINT})')
     group.add_argument('--machine-id-path',
                        type=Path,
                        default=machine_id_path,
                        help=f'path to the file containing machine id '
                             f'(default: {machine_id_path})')
+    group.add_argument('--timeout',
+                       type=int,
+                       default=DEFAULT_TIMEOUT,
+                       help=f'connection timeout '
+                            f'(default: {DEFAULT_TIMEOUT})')
 
     args = argp.parse_args(argv)
     return args.action(args)

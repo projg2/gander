@@ -13,6 +13,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+from requests.models import PreparedRequest
+import responses
+
 from gander.cli import get_default_machine_id_path, main, MACHINE_ID_RE
 from gander.privacy import PRIVACY_POLICY
 
@@ -114,17 +117,24 @@ class CLIBareTests(unittest.TestCase):
 
 
 class CLIRepoTests(EbuildRepositoryTestCase):
+    expected_report = {
+        'goose-version': 1,
+        'id': '0123456789abcdef0123456789abcdef',
+        'profile': 'default/linux/amd64',
+        'world': [
+            'dev-libs/bar',
+            'dev-libs/foo',
+            'dev-util/frobnicate',
+        ],
+    }
+
     def setUp(self) -> None:
         super().setUp()
-        packages = [
-            'dev-libs/foo',
-            'dev-libs/bar',
-            'dev-util/frobnicate'
-        ]
+        packages = self.expected_report['world']
+        assert isinstance(packages, list)
         self.create(world=packages)
         for x in packages:
             self.create_vdb_package(f'{x}-1')
-        self.packages = sorted(packages)
 
     @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
     def test_make_report(self, sout: io.StringIO) -> None:
@@ -137,14 +147,8 @@ class CLIRepoTests(EbuildRepositoryTestCase):
                   '--config-root', self.tempdir.name,
                   '--machine-id-path', str(machine_id_path)]),
             0)
-        self.assertEqual(
-            json.loads(sout.getvalue()),
-            {
-                'goose-version': 1,
-                'id': '0123456789abcdef0123456789abcdef',
-                'profile': 'default/linux/amd64',
-                'world': sorted(self.packages),
-            })
+        self.assertEqual(json.loads(sout.getvalue()),
+                         self.expected_report)
 
     @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
     def test_make_report_invalid_id(self, sout: io.StringIO) -> None:
@@ -157,13 +161,11 @@ class CLIRepoTests(EbuildRepositoryTestCase):
                   '--config-root', self.tempdir.name,
                   '--machine-id-path', str(machine_id_path)]),
             0)
+        expected = dict(self.expected_report)
+        del expected['id']
         self.assertEqual(
             json.loads(sout.getvalue()),
-            {
-                'goose-version': 1,
-                'profile': 'default/linux/amd64',
-                'world': sorted(self.packages),
-            })
+            expected)
 
     @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
     def test_make_report_missing_id(self, sout: io.StringIO) -> None:
@@ -173,10 +175,62 @@ class CLIRepoTests(EbuildRepositoryTestCase):
                   '--config-root', self.tempdir.name,
                   '--machine-id-path', str(machine_id_path)]),
             0)
+        expected = dict(self.expected_report)
+        del expected['id']
         self.assertEqual(
             json.loads(sout.getvalue()),
-            {
-                'goose-version': 1,
-                'profile': 'default/linux/amd64',
-                'world': sorted(self.packages),
-            })
+            expected)
+
+    @responses.activate
+    def test_submit_report_missing_id(self) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        self.assertEqual(
+            main(['--submit',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path),
+                  '--api-endpoint', 'http://example.com/submit']),
+            1)
+
+    @responses.activate
+    def test_submit_report(self) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('0123456789abcdef0123456789abcdef\n')
+
+        def handle_request(request: PreparedRequest
+                           ) -> typing.Tuple[int,
+                                             typing.Dict[str, str],
+                                             str]:
+            assert request.body is not None
+            data = json.loads(request.body)
+            self.assertEqual(data, self.expected_report)
+            return (200, {}, 'Data added, thanks.')
+
+        responses.add_callback(
+            'PUT', 'http://example.com/submit', handle_request)
+
+        self.assertEqual(
+            main(['--submit',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path),
+                  '--api-endpoint', 'http://example.com/submit']),
+            0)
+
+    @responses.activate
+    def test_submit_report_reject_by_limit(self) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('0123456789abcdef0123456789abcdef\n')
+
+        responses.add(
+            'PUT',
+            'http://example.com/submit',
+            status=429,
+            body='Rate limit hit')
+
+        self.assertEqual(
+            main(['--submit',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path),
+                  '--api-endpoint', 'http://example.com/submit']),
+            1)
