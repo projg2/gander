@@ -35,11 +35,14 @@ def make_report(args: argparse.Namespace) -> int:
         if MACHINE_ID_RE.match(machine_id):
             data['id'] = machine_id
         else:
-            print(
-                f'Warning: machine-id in {args.machine_id_path} invalid',
-                file=sys.stderr)
+            print(f'Warning: machine-id in {args.machine_id_path} '
+                  f'invalid, the report will not be suitable for '
+                  f'submission; please run --setup to create a new one',
+                  file=sys.stderr)
     except FileNotFoundError:
-        pass
+        print('Warning: no machine-id found, the report will not '
+              'be suitable for submission; please run --setup first',
+              file=sys.stderr)
 
     json.dump(data, sys.stdout, indent=2)
     print()
