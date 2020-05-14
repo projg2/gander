@@ -5,6 +5,8 @@
 
 import argparse
 import json
+import os
+import secrets
 import sys
 import typing
 
@@ -34,6 +36,15 @@ def privacy_policy(args: argparse.Namespace) -> int:
     return 0
 
 
+def get_default_machine_id_path() -> Path:
+    machine_id_path = Path('/etc/gander.id')
+    if not os.access(machine_id_path, os.W_OK):
+        machine_id_path = (Path(os.environ.get('XDG_CONFIG_HOME',
+                                               Path.home() / '.config'))
+                           / 'gander.id')
+    return machine_id_path
+
+
 def setup(args: argparse.Namespace) -> int:
     print(PRIVACY_POLICY)
     print()
@@ -51,7 +62,14 @@ def setup(args: argparse.Namespace) -> int:
             print()
             return 1
 
-    # TODO: generate system identifier
+    # NB: we don't really need cryptographic security but the 'secrets'
+    # module is convenient to use
+    sysid = secrets.token_hex(16)
+    os.makedirs(args.machine_id_path.parent, exist_ok=True)
+    with open(args.machine_id_path, 'w') as f:
+        f.write(f'{sysid}\n')
+    print(f'Machine id: {sysid},\nwritten to {args.machine_id_path}')
+
     # TODO: set up a cronjob
 
     return 0
@@ -87,6 +105,14 @@ def main(argv: typing.List[str]) -> int:
                        type=Path,
                        help='system root path relative to which '
                             'configuration files are loaded')
+
+    group = argp.add_argument_group('submission options')
+    machine_id_path = get_default_machine_id_path()
+    group.add_argument('--machine-id-path',
+                       type=Path,
+                       default=machine_id_path,
+                       help=f'path to the file containing machine id '
+                            f'(default: {machine_id_path})')
 
     args = argp.parse_args(argv)
     return args.action(args)

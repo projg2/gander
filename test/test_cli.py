@@ -5,12 +5,15 @@
 
 import io
 import json
+import os
+import tempfile
 import typing
 import unittest
 
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 
-from gander.cli import main
+from gander.cli import get_default_machine_id_path, main
 from gander.privacy import PRIVACY_POLICY
 
 from test.repo import EbuildRepositoryTestCase
@@ -32,9 +35,47 @@ def patch_stdin(data: str
     return decorator
 
 
+class GetDefaultMachineIdPathTests(unittest.TestCase):
+    @patch('gander.cli.os.access')
+    def test_root(self,
+                  access: MagicMock
+                  ) -> None:
+        access.return_value = True
+        self.assertEqual(
+            get_default_machine_id_path(),
+            Path('/etc/gander.id'))
+        access.assert_called_with(Path('/etc/gander.id'), os.W_OK)
+
+    @patch('gander.cli.os.environ', new_callable=dict)
+    @patch('gander.cli.os.access')
+    def test_xdg_config_home(self,
+                             access: MagicMock,
+                             environ: dict
+                             ) -> None:
+        access.return_value = False
+        environ['XDG_CONFIG_HOME'] = '/foo'
+        self.assertEqual(
+            get_default_machine_id_path(),
+            Path('/foo/gander.id'))
+        access.assert_called_with(Path('/etc/gander.id'), os.W_OK)
+
+    @patch('gander.cli.os.environ', new_callable=dict)
+    @patch('gander.cli.os.access')
+    def test_default_config(self,
+                            access: MagicMock,
+                            environ: dict
+                            ) -> None:
+        access.return_value = False
+        environ['HOME'] = '/foo'
+        self.assertEqual(
+            get_default_machine_id_path(),
+            Path('/foo/.config/gander.id'))
+        access.assert_called_with(Path('/etc/gander.id'), os.W_OK)
+
+
 class CLIBareTests(unittest.TestCase):
     @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
-    def test_make_report(self, sout: io.StringIO) -> None:
+    def test_privacy_policy(self, sout: io.StringIO) -> None:
         self.assertEqual(
             main(['--privacy-policy']),
             0)
@@ -45,7 +86,18 @@ class CLIBareTests(unittest.TestCase):
                      sout: io.StringIO,
                      exit_status: int = 0
                      ) -> None:
-        self.assertEqual(main(['--setup']), exit_status)
+        with tempfile.TemporaryDirectory() as tempdir:
+            machine_id_path = Path(tempdir) / 'subdir' / 'machine-id'
+            self.assertEqual(
+                main(['--setup',
+                      '--machine-id-path', str(machine_id_path)]),
+                exit_status)
+            if exit_status == 0:
+                with open(machine_id_path) as f:
+                    self.assertRegex(f.read().strip(), r'[0-9a-f]{16}')
+            else:
+                self.assertFalse(machine_id_path.exists())
+
         self.assertIn(PRIVACY_POLICY, sout.getvalue())
 
     @patch_stdin('\n')
