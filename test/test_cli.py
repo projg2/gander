@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from gander.cli import get_default_machine_id_path, main
+from gander.cli import get_default_machine_id_path, main, MACHINE_ID_RE
 from gander.privacy import PRIVACY_POLICY
 
 from test.repo import EbuildRepositoryTestCase
@@ -94,7 +94,7 @@ class CLIBareTests(unittest.TestCase):
                 exit_status)
             if exit_status == 0:
                 with open(machine_id_path) as f:
-                    self.assertRegex(f.read().strip(), r'[0-9a-f]{16}')
+                    self.assertRegex(f.read().strip(), MACHINE_ID_RE)
             else:
                 self.assertFalse(machine_id_path.exists())
 
@@ -128,9 +128,50 @@ class CLIRepoTests(EbuildRepositoryTestCase):
 
     @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
     def test_make_report(self, sout: io.StringIO) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('0123456789abcdef0123456789abcdef\n')
+
         self.assertEqual(
             main(['--make-report',
-                  '--config-root', self.tempdir.name]),
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path)]),
+            0)
+        self.assertEqual(
+            json.loads(sout.getvalue()),
+            {
+                'goose-version': 1,
+                'id': '0123456789abcdef0123456789abcdef',
+                'profile': 'default/linux/amd64',
+                'world': sorted(self.packages),
+            })
+
+    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    def test_make_report_invalid_id(self, sout: io.StringIO) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('test\n')
+
+        self.assertEqual(
+            main(['--make-report',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path)]),
+            0)
+        self.assertEqual(
+            json.loads(sout.getvalue()),
+            {
+                'goose-version': 1,
+                'profile': 'default/linux/amd64',
+                'world': sorted(self.packages),
+            })
+
+    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    def test_make_report_missing_id(self, sout: io.StringIO) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        self.assertEqual(
+            main(['--make-report',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path)]),
             0)
         self.assertEqual(
             json.loads(sout.getvalue()),

@@ -6,6 +6,7 @@
 import argparse
 import json
 import os
+import re
 import secrets
 import sys
 import typing
@@ -17,6 +18,9 @@ from gander.privacy import PRIVACY_POLICY
 from gander.report import PortageAPI
 
 
+MACHINE_ID_RE = re.compile(r'[0-9a-f]{32}')
+
+
 def make_report(args: argparse.Namespace) -> int:
     api = PortageAPI(config_root=args.config_root)
     data = {
@@ -24,7 +28,18 @@ def make_report(args: argparse.Namespace) -> int:
         'profile': api.profile,
         'world': api.world,
     }
-    # TODO: system id
+
+    try:
+        with open(args.machine_id_path, 'r') as f:
+            machine_id = f.read().strip()
+        if MACHINE_ID_RE.match(machine_id):
+            data['id'] = machine_id
+        else:
+            print(
+                f'Warning: machine-id in {args.machine_id_path} invalid',
+                file=sys.stderr)
+    except FileNotFoundError:
+        pass
 
     json.dump(data, sys.stdout, indent=2)
     print()
