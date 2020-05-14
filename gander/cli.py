@@ -131,13 +131,19 @@ def submit(args: argparse.Namespace) -> int:
             print('It seems that the report has been accepted.')
             return 0
         else:
-            print('The submission has failed.')
+            print('Submission failed.')
             if resp.status_code >= 500 and resp.status_code < 600:
                 print('The server seems to be having trouble, please '
                       'try again later.')
             elif resp.status_code == 429:
                 print('Please wait 7 days between successive '
                       'submissions.')
+            elif resp.status_code == 413:
+                rep_mib = len(json.dumps(data)) / 1024 / 1024
+                print(f'The report ({rep_mib:.2f} MiB) seems to have '
+                      f'exceeded server-defined request size limit.')
+                print('Please file a bug at https://bugs.gentoo.org/, '
+                      'asking Gentoo Infra to increase the limit.')
             elif resp.status_code == 404:
                 print('Did you specify a correct API endpoint URL?')
             return 1
