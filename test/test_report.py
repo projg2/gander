@@ -5,6 +5,7 @@
 
 from pathlib import Path
 
+import os
 import typing
 
 from gander.report import PortageAPI
@@ -19,6 +20,9 @@ class PortageAPITests(EbuildRepositoryTestCase):
                world: typing.Iterable[str] = []
                ) -> None:
         super().create(profile_callback, world)
+        # discard envvars that override Portage configuration
+        for v in ('PORTDIR', 'PORTAGE_REPOSITORIES'):
+            os.environ.pop(v, None)
         self.api = PortageAPI(config_root=Path(self.tempdir.name))
 
     def test_profile_symlink(self) -> None:
