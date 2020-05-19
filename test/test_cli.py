@@ -16,7 +16,10 @@ from unittest.mock import patch, MagicMock
 from requests.models import PreparedRequest
 import responses
 
-from gander.cli import get_default_machine_id_path, main, MACHINE_ID_RE
+from gander.__main__ import (get_default_machine_id_path,
+                             main,
+                             MACHINE_ID_RE,
+                             )
 from gander.privacy import PRIVACY_POLICY
 
 from test.repo import EbuildRepositoryTestCase
@@ -33,13 +36,13 @@ def patch_stdin(data: str
             sin.write(data)
             sin.seek(0)
             return func(self, *args, **kwargs)
-        return patch('gander.cli.sys.stdin',
+        return patch('gander.__main__.sys.stdin',
                      new_callable=io.StringIO)(subfunc)
     return decorator
 
 
 class GetDefaultMachineIdPathTests(unittest.TestCase):
-    @patch('gander.cli.os.access')
+    @patch('gander.__main__.os.access')
     def test_root(self,
                   access: MagicMock
                   ) -> None:
@@ -49,8 +52,8 @@ class GetDefaultMachineIdPathTests(unittest.TestCase):
             Path('/etc/gander.id'))
         access.assert_called_with(Path('/etc/gander.id'), os.W_OK)
 
-    @patch('gander.cli.os.environ', new_callable=dict)
-    @patch('gander.cli.os.access')
+    @patch('gander.__main__.os.environ', new_callable=dict)
+    @patch('gander.__main__.os.access')
     def test_xdg_config_home(self,
                              access: MagicMock,
                              environ: dict
@@ -62,8 +65,8 @@ class GetDefaultMachineIdPathTests(unittest.TestCase):
             Path('/foo/gander.id'))
         access.assert_called_with(Path('/etc/gander.id'), os.W_OK)
 
-    @patch('gander.cli.os.environ', new_callable=dict)
-    @patch('gander.cli.os.access')
+    @patch('gander.__main__.os.environ', new_callable=dict)
+    @patch('gander.__main__.os.access')
     def test_default_config(self,
                             access: MagicMock,
                             environ: dict
@@ -77,14 +80,14 @@ class GetDefaultMachineIdPathTests(unittest.TestCase):
 
 
 class CLIBareTests(unittest.TestCase):
-    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
     def test_privacy_policy(self, sout: io.StringIO) -> None:
         self.assertEqual(
             main(['--privacy-policy']),
             0)
         self.assertIn(PRIVACY_POLICY, sout.getvalue())
 
-    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
     def assert_setup(self,
                      sout: io.StringIO,
                      exit_status: int = 0
@@ -136,7 +139,7 @@ class CLIRepoTests(EbuildRepositoryTestCase):
         for x in packages:
             self.create_vdb_package(f'{x}-1')
 
-    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
     def test_make_report(self, sout: io.StringIO) -> None:
         machine_id_path = Path(self.tempdir.name) / 'machine-id'
         with open(machine_id_path, 'w') as f:
@@ -150,7 +153,7 @@ class CLIRepoTests(EbuildRepositoryTestCase):
         self.assertEqual(json.loads(sout.getvalue()),
                          self.expected_report)
 
-    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
     def test_make_report_invalid_id(self, sout: io.StringIO) -> None:
         machine_id_path = Path(self.tempdir.name) / 'machine-id'
         with open(machine_id_path, 'w') as f:
@@ -167,7 +170,7 @@ class CLIRepoTests(EbuildRepositoryTestCase):
             json.loads(sout.getvalue()),
             expected)
 
-    @patch('gander.cli.sys.stdout', new_callable=io.StringIO)
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
     def test_make_report_missing_id(self, sout: io.StringIO) -> None:
         machine_id_path = Path(self.tempdir.name) / 'machine-id'
         self.assertEqual(

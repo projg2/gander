@@ -20,7 +20,7 @@ setup(
     packages=['gander'],
     entry_points={
         'console_scripts': [
-            'gander=gander.cli:setuptools_main',
+            'gander=gander.__main__:setuptools_main',
         ],
     },
 
