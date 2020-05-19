@@ -195,7 +195,8 @@ class CLIRepoTests(EbuildRepositoryTestCase):
             1)
 
     @responses.activate
-    def test_submit_report(self) -> None:
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
+    def test_submit_report(self, sout) -> None:
         machine_id_path = Path(self.tempdir.name) / 'machine-id'
         with open(machine_id_path, 'w') as f:
             f.write('0123456789abcdef0123456789abcdef\n')
@@ -218,9 +219,38 @@ class CLIRepoTests(EbuildRepositoryTestCase):
                   '--machine-id-path', str(machine_id_path),
                   '--api-endpoint', 'http://example.com/submit']),
             0)
+        self.assertNotEqual(sout.getvalue(), '')
 
     @responses.activate
-    def test_submit_report_reject_by_limit(self) -> None:
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
+    def test_submit_report_quiet(self, sout) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('0123456789abcdef0123456789abcdef\n')
+
+        def handle_request(request: PreparedRequest
+                           ) -> typing.Tuple[int,
+                                             typing.Dict[str, str],
+                                             str]:
+            assert request.body is not None
+            data = json.loads(request.body)
+            self.assertEqual(data, self.expected_report)
+            return (200, {}, 'Data added, thanks.')
+
+        responses.add_callback(
+            'PUT', 'http://example.com/submit', handle_request)
+
+        self.assertEqual(
+            main(['--submit', '--quiet',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path),
+                  '--api-endpoint', 'http://example.com/submit']),
+            0)
+        self.assertEqual(sout.getvalue(), '')
+
+    @responses.activate
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
+    def test_submit_report_reject_by_limit(self, sout) -> None:
         machine_id_path = Path(self.tempdir.name) / 'machine-id'
         with open(machine_id_path, 'w') as f:
             f.write('0123456789abcdef0123456789abcdef\n')
@@ -237,3 +267,47 @@ class CLIRepoTests(EbuildRepositoryTestCase):
                   '--machine-id-path', str(machine_id_path),
                   '--api-endpoint', 'http://example.com/submit']),
             1)
+        self.assertNotEqual(sout.getvalue(), '')
+
+    @responses.activate
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
+    def test_submit_report_reject_by_limit_quiet(self, sout) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('0123456789abcdef0123456789abcdef\n')
+
+        responses.add(
+            'PUT',
+            'http://example.com/submit',
+            status=429,
+            body='Rate limit hit')
+
+        self.assertEqual(
+            main(['--submit', '--quiet',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path),
+                  '--api-endpoint', 'http://example.com/submit']),
+            1)
+        self.assertNotEqual(sout.getvalue(), '')
+
+    @responses.activate
+    @patch('gander.__main__.sys.stdout', new_callable=io.StringIO)
+    def test_submit_report_reject_by_limit_no_messages(self,
+                                                       sout) -> None:
+        machine_id_path = Path(self.tempdir.name) / 'machine-id'
+        with open(machine_id_path, 'w') as f:
+            f.write('0123456789abcdef0123456789abcdef\n')
+
+        responses.add(
+            'PUT',
+            'http://example.com/submit',
+            status=429,
+            body='Rate limit hit')
+
+        self.assertEqual(
+            main(['--submit', '--no-messages',
+                  '--config-root', self.tempdir.name,
+                  '--machine-id-path', str(machine_id_path),
+                  '--api-endpoint', 'http://example.com/submit']),
+            1)
+        self.assertEqual(sout.getvalue(), '')

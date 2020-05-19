@@ -123,14 +123,19 @@ def submit(args: argparse.Namespace) -> int:
                             json=data,
                             timeout=args.timeout)
     except (requests.ConnectionError, requests.Timeout) as e:
-        print(f'Report submission failed:\n{e}')
-        return 1
+        if not args.no_messages:
+            print(f'Report submission failed:\n{e}')
+            return 1
     else:
-        print(f'The server replied ({resp.status_code}):\n{resp.text}')
         if resp:
-            print('It seems that the report has been accepted.')
+            if not args.quiet and not args.no_messages:
+                print(f'The server replied ({resp.status_code}):')
+                print(resp.text)
+                print('It seems that the report has been accepted.')
             return 0
-        else:
+        elif not args.no_messages:
+            print(f'The server replied ({resp.status_code}):')
+            print(resp.text)
             print('Submission failed.')
             if resp.status_code >= 500 and resp.status_code < 600:
                 print('The server seems to be having trouble, please '
@@ -146,7 +151,7 @@ def submit(args: argparse.Namespace) -> int:
                       'asking Gentoo Infra to increase the limit.')
             elif resp.status_code == 404:
                 print('Did you specify a correct API endpoint URL?')
-            return 1
+        return 1
 
 
 def main(argv: typing.List[str]) -> int:
@@ -196,6 +201,13 @@ def main(argv: typing.List[str]) -> int:
                        default=machine_id_path,
                        help=f'path to the file containing machine id '
                             f'(default: {machine_id_path})')
+    group.add_argument('-q', '--quiet',
+                       action='store_true',
+                       help='disable progress and status output (i.e. '
+                            'make gander quiet on success)')
+    group.add_argument('-s', '--no-messages',
+                       action='store_true',
+                       help='disable all output, including failures')
     group.add_argument('--timeout',
                        type=int,
                        default=DEFAULT_TIMEOUT,
