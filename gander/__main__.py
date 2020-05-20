@@ -10,6 +10,7 @@ import re
 import secrets
 import sys
 import typing
+import urllib.parse
 
 from pathlib import Path
 
@@ -117,10 +118,21 @@ def submit(args: argparse.Namespace) -> int:
         'world': api.world,
     }
 
+    if args.tor:
+        route = secrets.token_hex(2)
+        proxies = {
+            # TODO: guess and use 127.0.0.1 / ::1 instead?
+            args.api_endpoint.scheme:
+                f'socks5h://gander{route}@localhost:9050',
+        }
+    else:
+        proxies = {}
+
     try:
-        resp = requests.put(args.api_endpoint,
+        resp = requests.put(args.api_endpoint.geturl(),
                             headers={'User-Agent': 'gander'},
                             json=data,
+                            proxies=proxies,
                             timeout=args.timeout)
     except (requests.ConnectionError, requests.Timeout) as e:
         if not args.no_messages:
@@ -193,7 +205,8 @@ def main(argv: typing.List[str]) -> int:
     group = argp.add_argument_group('submission options')
     machine_id_path = get_default_machine_id_path()
     group.add_argument('--api-endpoint',
-                       default=DEFAULT_ENDPOINT,
+                       default=urllib.parse.urlparse(DEFAULT_ENDPOINT),
+                       type=urllib.parse.urlparse,
                        help=f'API endpoint '
                             f'(default: {DEFAULT_ENDPOINT})')
     group.add_argument('--machine-id-path',
@@ -213,6 +226,10 @@ def main(argv: typing.List[str]) -> int:
                        default=DEFAULT_TIMEOUT,
                        help=f'connection timeout '
                             f'(default: {DEFAULT_TIMEOUT})')
+    group.add_argument('-t', '--tor',
+                       action='store_true',
+                       help='use local tor instance to establish '
+                            'the connection (must be running on :9050')
 
     args = argp.parse_args(argv)
     return args.action(args)
